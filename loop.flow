@@ -1,0 +1,15 @@
+0->abc;
+{
+	abc+1->abc;
+	abc->out;
+}until abc=10;
+"down!"->out;
+{
+	abc-1->abc;
+	1->x;
+	{
+		x->out;
+		x+1->x;
+	}until x=3;
+	abc->out;
+}until abc=0;

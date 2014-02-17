@@ -1,0 +1,383 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<style>
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote {
+    margin: 0;
+    padding: 0;
+}
+body {
+    font-family: "Helvetica Neue", Helvetica, "Hiragino Sans GB", Arial, sans-serif;
+    font-size: 13px;
+    line-height: 18px;
+    color: #737373;
+    background-color: white;
+    margin: 10px 13px 10px 13px;
+}
+table {
+	margin: 10px 0 15px 0;
+	border-collapse: collapse;
+}
+td,th {	
+	border: 1px solid #ddd;
+	padding: 3px 10px;
+}
+th {
+	padding: 5px 10px;	
+}
+
+a {
+    color: #0069d6;
+}
+a:hover {
+    color: #0050a3;
+    text-decoration: none;
+}
+a img {
+    border: none;
+}
+p {
+    margin-bottom: 9px;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: #404040;
+    line-height: 36px;
+}
+h1 {
+    margin-bottom: 18px;
+    font-size: 30px;
+}
+h2 {
+    font-size: 24px;
+}
+h3 {
+    font-size: 18px;
+}
+h4 {
+    font-size: 16px;
+}
+h5 {
+    font-size: 14px;
+}
+h6 {
+    font-size: 13px;
+}
+hr {
+    margin: 0 0 19px;
+    border: 0;
+    border-bottom: 1px solid #ccc;
+}
+blockquote {
+    padding: 13px 13px 21px 15px;
+    margin-bottom: 18px;
+    font-family:georgia,serif;
+    font-style: italic;
+}
+blockquote:before {
+    content:"\201C";
+    font-size:40px;
+    margin-left:-10px;
+    font-family:georgia,serif;
+    color:#eee;
+}
+blockquote p {
+    font-size: 14px;
+    font-weight: 300;
+    line-height: 18px;
+    margin-bottom: 0;
+    font-style: italic;
+}
+code, pre {
+    font-family: Monaco, Andale Mono, Courier New, monospace;
+}
+code {
+    background-color: #fee9cc;
+    color: rgba(0, 0, 0, 0.75);
+    padding: 1px 3px;
+    font-size: 12px;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+}
+pre {
+    display: block;
+    padding: 14px;
+    margin: 0 0 18px;
+    line-height: 16px;
+    font-size: 11px;
+    border: 1px solid #d9d9d9;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+pre code {
+    background-color: #fff;
+    color:#737373;
+    font-size: 11px;
+    padding: 0;
+}
+@media screen and (min-width: 914px) {
+    body {
+        width: 854px;
+        margin:10px auto;
+    }
+}
+@media print {
+	body,code,pre code,h1,h2,h3,h4,h5,h6 {
+		color: black;
+	}
+	table, pre {
+		page-break-inside: avoid;
+	}
+}
+</style>
+<title>Flow</title>
+
+</head>
+<body>
+<h1>Flow</h1>
+
+<p>Flow is a programming language designed to accomodate easy and smart operating on streamed data. Like <code>sed</code> operates on streams using regular expressions, Flow allows one to operate on streams using more advanced instructions. It is anticipated to become Turing-complete.</p>
+
+<h2>Syntax</h2>
+
+<p>Flow uses the <strong>loop block</strong> as its main control structure. Loop blocks are delimited by braces, <code>{</code> and <code>}</code>, and contain code to be looped as prescribed by its condition, following the loop block in the code. Loop block and condition forms a <strong>loop block construct</strong>. For example, the following statement features one:</p>
+
+<pre><code>{in + 1 -&gt;&gt; str;} until peek = newline;
+</code></pre>
+
+<p>Loop blocks contain statements which are executed as long as its condition prescribes. A condition using <code>until</code> prescribes that the code should be run while the following conditional yields a falsy value, and a condition using <code>while</code> prescribes running while it yields a truthy value. In the example case, the statement <code>in + 1 -&gt;&gt; str;</code> is run while the conditional <code>peek = newline</code> yields a falsy value.</p>
+
+<p>A Flow <strong>statement</strong> consists either of a loop block construct as described above, or an assignment, and is terminated by a semicolon. An assignment takes the form <code>A-&gt;B</code> where the expression <code>A</code> is the thing assigned to <code>B</code>. If <code>B</code> is <code>out</code>, <code>A</code>'s result is outputted, else <code>B</code> is taken to be a variable name and <code>A</code>'s result is stored in that variable. If it is of the form <code>A-&gt;&gt;B</code>, <code>A</code>'s result is <em>appended</em> to the variable named <code>B</code>, creating it if nonexistent. Around the "arrow", whitespace is optional. After the arrow, there is always one token.</p>
+
+<p>A Flow <strong>expression</strong> is in infix format using parentheses, which is the format you're all familiar with. This means that the expression <code>a + 1</code> just means "a plus one", <code>a + b * c</code> means "a plus the product of b and c" and <code>(a + b) * c</code> means "the product of c and the sum of a and b". Around all the symbols that are part of the language definition, which consist of one or more characters that are <em>not</em> alphanumeric, whitespace is optional. This means that <code>a + 1</code> may also be written <code>a+1</code>, and taken together with the rules for the assignment arrow, the example statement could also be written:</p>
+
+<pre><code>{in+1-&gt;&gt;str;}until peek=newline;
+</code></pre>
+
+<p>A Flow <strong>conditional</strong> is simply an expression whose result is taken as a boolean. The comparison operators will be sighted more in conditionals than in other expressions though, but they <em>can</em> be used everywhere. The <strong>implicit boolean cast</strong> performed is simple: everything is truthy in principle, except zero and an undefined value like NaN.</p>
+
+<h2>Notation and literals</h2>
+
+<p>A <strong>variable</strong> name in Flow is valid if it is matched by the regular expression <code>^[A-Za-z_][A-Za-z0-9_]*$</code>: a letter or an underscore followed by any number of letters, underscores or numbers. Flow is case-sensitive.</p>
+
+<p>Numbers are written normally, matched by the regular expression <code>^-?([0-9]+(\.[0-9]*)?|\.[0-9]+)$</code>. This means, <code>123</code>, <code>123.456</code>, <code>123.</code> (=<code>123.0</code>=<code>123</code>), <code>.123</code> (=<code>0.123</code>) and <code>-.1</code> are all valid, but <code>.</code> isn't and for example <code>123.456.789</code> is parsed as two numbers, <code>123.456</code> and <code>.789</code>.</p>
+
+<p>Furthermore, strings are any sequence of characters surrounded by matching double quotes, <code>"like this"</code>. Inside a string literal, the sequences <code>\\</code>, <code>\"</code>, <code>\n</code>, <code>\r</code> and <code>\t</code> produce a literal backslash, a literal double quote, a newline, a carriage-return and a tab, respectively.</p>
+
+<h2>Operators</h2>
+
+<p>Flow knows the following <strong>operators</strong>: <em>(lower precedence number means higher importance)</em></p>
+
+<table>
+<thead>
+<tr>
+<th align="center">Precedence</th>
+<th align="center">   Operator  </th>
+<th align="left"> Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">&rarr; 0 </td>
+<td align="center"><code>(</code> <code>)</code>      </td>
+<td align="left"> <em>Operator grouping, not really an operator. Works just like you expect.</em></td>
+</tr>
+<tr>
+<td align="center">&rarr; 1 </td>
+<td align="center"><code>!</code>          </td>
+<td align="left"> <em>prefix</em>(1 arg): Logical inverse of its argument</td>
+</tr>
+<tr>
+<td align="center">&rarr; 2 </td>
+<td align="center"><code>*</code>          </td>
+<td align="left"> <em>infix</em>(2 args): The product of its two operands</td>
+</tr>
+<tr>
+<td align="center">2     </td>
+<td align="center"><code>/</code>          </td>
+<td align="left"> <em>infix</em>(2 args): The quotient of its two operands</td>
+</tr>
+<tr>
+<td align="center">&rarr; 3 </td>
+<td align="center"><code>+</code>          </td>
+<td align="left"> <em>infix</em>(2 args): The sum of its two operands</td>
+</tr>
+<tr>
+<td align="center">3     </td>
+<td align="center"><code>-</code>          </td>
+<td align="left"> <em>infix</em>(2 args): The difference between its two operands</td>
+</tr>
+<tr>
+<td align="center">&rarr; 4 </td>
+<td align="center"><code>&gt;</code>          </td>
+<td align="left"> <em>infix</em>(2 args): Whether its first operand is larger than its second</td>
+</tr>
+<tr>
+<td align="center">4     </td>
+<td align="center"><code>&lt;</code>          </td>
+<td align="left"> <em>infix</em>(2 args): Whether its first operand is smaller than its second</td>
+</tr>
+<tr>
+<td align="center">4     </td>
+<td align="center"><code>&gt;=</code>         </td>
+<td align="left"> <em>infix</em>(2 args): Whether its first operand is larger than or equal to its second</td>
+</tr>
+<tr>
+<td align="center">4     </td>
+<td align="center"><code>&lt;=</code>         </td>
+<td align="left"> <em>infix</em>(2 args): Whether its first operand is smaller than or equal to its second</td>
+</tr>
+<tr>
+<td align="center">&rarr; 5 </td>
+<td align="center"><code>=</code>          </td>
+<td align="left"> <em>infix</em>(2 args): Whether its two operands are equal</td>
+</tr>
+<tr>
+<td align="center">5     </td>
+<td align="center"><code>!=</code>         </td>
+<td align="left"> <em>infix</em>(2 args): Whether its two operatnds are <em>not</em> equal</td>
+</tr>
+<tr>
+<td align="center">&rarr; 6 </td>
+<td align="center"><code>&amp;&amp;</code>         </td>
+<td align="left"> <em>infix</em>(2 args): Yields true iff both its operands are truthy</td>
+</tr>
+<tr>
+<td align="center">6     </td>
+<td align="center"><code>||</code>       </td>
+<td align="left"> <em>infix</em>(2 args): Yields true iff at least one of its operands is truthy</td>
+</tr>
+<tr>
+<td align="center">6     </td>
+<td align="center"><code>^^</code>         </td>
+<td align="left"> <em>infix</em>(2 args): Yields true iff exactly one its operands is truthy</td>
+</tr>
+<tr>
+<td align="center">6     </td>
+<td align="center"><code>!&amp;&amp;</code>        </td>
+<td align="left"> <em>infix</em>(2 args): Yields false iff both its operands are truthy</td>
+</tr>
+<tr>
+<td align="center">6     </td>
+<td align="center"><code>!||</code>      </td>
+<td align="left"> <em>infix</em>(2 args): Yields true iff both its operands are falsy</td>
+</tr>
+<tr>
+<td align="center">6     </td>
+<td align="center"><code>!^^</code>        </td>
+<td align="left"> <em>infix</em>(2 args): Yields true iff its operands are both truthy or both falsy</td>
+</tr>
+<tr>
+<td align="center">&rarr; 7 </td>
+<td align="center"><code>not</code>        </td>
+<td align="left"> <em>prefix</em>(1 arg): =<code>!</code></td>
+</tr>
+<tr>
+<td align="center">&rarr; 8 </td>
+<td align="center"><code>and</code>        </td>
+<td align="left"> <em>infix</em>(2 args): =<code>&amp;&amp;</code></td>
+</tr>
+<tr>
+<td align="center">8     </td>
+<td align="center"><code>or</code>         </td>
+<td align="left"> <em>infix</em>(2 args): =<code>||</code></td>
+</tr>
+<tr>
+<td align="center">8     </td>
+<td align="center"><code>xor</code>        </td>
+<td align="left"> <em>infix</em>(2 args): =<code>^^</code></td>
+</tr>
+<tr>
+<td align="center">8     </td>
+<td align="center"><code>nand</code>       </td>
+<td align="left"> <em>infix</em>(2 args): =<code>!&amp;&amp;</code></td>
+</tr>
+<tr>
+<td align="center">8     </td>
+<td align="center"><code>nor</code>        </td>
+<td align="left"> <em>infix</em>(2 args): =<code>!||</code></td>
+</tr>
+<tr>
+<td align="center">8     </td>
+<td align="center"><code>nxor</code>       </td>
+<td align="left"> <em>infix</em>(2 args): =<code>!^^</code></td>
+</tr>
+</tbody>
+</table>
+
+
+<p>All associativity is left-to-right. Note<sub>1</sub> that <code>!</code> and <code>not</code> are <strong>prefix</strong>, not <strong>infix</strong> (which is only natural because this dictates a notation like <code>not a and b</code>{=<code>!(a&amp;&amp;b)</code>} or <code>!a or b</code>{=<code>(not a)||b</code>}). Note<sub>2</sub> also that all the boolean operators, those with precedence <strong>8</strong>, have the same precedence, and as such they are evaluated left-to-right, contrary to for example in C++ in which <code>&amp;&amp;</code> goes before <code>||</code>. Note<sub>3</sub> furthermore that if an operator has a symbol equivalent, that one always has a higher precedence by some amount.</p>
+
+<p>There are two special <strong>operators</strong> that do not have operands:</p>
+
+<table>
+<thead>
+<tr>
+<th align="center">Operator  </th>
+<th align="left"> Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center"><code>in</code>         </td>
+<td align="left">Yields a character read from standard input</td>
+</tr>
+<tr>
+<td align="center"><code>peek</code>       </td>
+<td align="left">Works like <code>in</code> except that it doesn't consume the character: a subsequent read will get the same character</td>
+</tr>
+</tbody>
+</table>
+
+
+<p>There are also a number of <strong>constants</strong> in Flow. They are in essence operators without operands that always return the same value. The following are built in:</p>
+
+<table>
+<thead>
+<tr>
+<th align="center">Constant</th>
+<th align="left">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center"><code>pi</code></td>
+<td align="left">The ratio between the circumference and the diameter of a circle</td>
+</tr>
+<tr>
+<td align="center"><code>newline</code></td>
+<td align="left">A single-character string containing ASCII 10 (LF)</td>
+</tr>
+<tr>
+<td align="center"><code>tab</code></td>
+<td align="left">A single-character string containing ASCII 9 (HT)</td>
+</tr>
+<tr>
+<td align="center"><code>BEL</code></td>
+<td align="left">A single-character string containing ASCII 7 (BEL)</td>
+</tr>
+</tbody>
+</table>
+
+
+<p>No seperate boolean values exist in Flow, but the numbers <code>1</code> and <code>0</code> replace true and false, respectively, and due to the <strong>implicit boolean cast</strong> mentioned above, all numbers not <code>0</code> count as true.</p>
+
+<hr />
+
+<p><em>By Tom Smeding, 2013.</em></p>
+</body>
+</html>
