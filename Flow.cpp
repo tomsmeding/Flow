@@ -184,24 +184,42 @@ ASTnode* ASTnode::getChildByType(astnodetype_t _t){
 	return NULL;
 }
 string ASTnode::compile(int tablevel){
+	int i;
 	ASTnode *node;
 	stringstream ss;
 	switch(type){
 	case ROOT:
 		ss<<"#include <stdio.h>\n\nint main(void){\n";
 		for(node=firstchild;node!=NULL;node=node->nextsibling){
-			ss<<node->compile(tablevel);
+			ss<<node->compile(tablevel+1);
 		}
 		ss<<"}\n"<<endl;
 		break;
 	case ASSIGN:
-		ss<<"\t"<<getChildByType(ASSIGN_DEST)->compile(tablevel)<<"="<<getChildByType(EXPR)->compile(tablevel)<<";"<<endl;
+		for(i=0;i<tablevel;i++)ss<<'\t';
+		ss<<getChildByType(ASSIGN_DEST)->compile(tablevel)<<"="<<getChildByType(EXPR)->compile(tablevel)<<";"<<endl;
 		break;
 	case LOOP:
+		for(i=0;i<tablevel;i++)ss<<'\t';
 		ss<<"Loop"<<endl;
 		break;
 	case EXPR:
 		return firstchild->compile(tablevel);
+	case EXPR_NUM:
+		ss<<*str;
+		break;
+	case EXPR_STR:
+	{
+		ss<<'"';
+		for(char c : *str){
+			if(c=='\n')ss<<"\\n";
+			else if(c=='\r')ss<<"\\r";
+			else if(c=='\\')ss<<"\\\\";
+			else ss<<c;
+		}
+		ss<<'"';
+	}
+		break;
 	default:
 		cerr<<"Unrecognised statement type "<<ASTnode::getTypeString(type)<<"!"<<endl;
 		break;
