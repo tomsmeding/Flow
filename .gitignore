@@ -1,3 +1,4 @@
 *.dot
 *.pdf
 Flow
+.DS_Store

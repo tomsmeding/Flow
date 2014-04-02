@@ -110,7 +110,7 @@ public:
 	~Program(void);
 	string listStatements(void);
 	void buildAST(ASTnode*);
-	void compile(ASTnode*);
+	string compile(ASTnode*);
 	static void buildExpressionAST(ASTnode*,vector<Token*>*,int,int);
 };
 
@@ -148,7 +148,7 @@ void ASTnode::printDOTrecur(stringstream *ss,int tablevel){
 	typestr=ASTnode::getTypeString(type);
 	for(node=firstchild;node!=NULL;node=node->nextsibling){
 		for(i=0;i<tablevel;i++)*ss<<"\t";
-		*ss<<"\""<<typestr<<"\\n"<<*str<<"("<<id<<")\"->\""<<ASTnode::getTypeString(node->type)<<"\\n"<<*node->str<<"("<<node->id<<")\";\n";
+		*ss<<"\""<<typestr<<"("<<id<<")\\n"<<*str<<"\"->\""<<ASTnode::getTypeString(node->type)<<"("<<node->id<<")\\n"<<*node->str<<"\";\n";
 		node->printDOTrecur(ss,tablevel+1);
 	}
 }
@@ -193,11 +193,14 @@ string ASTnode::compile(int tablevel){
 		for(node=firstchild;node!=NULL;node=node->nextsibling){
 			ss<<node->compile(tablevel+1);
 		}
-		ss<<"}\n"<<endl;
+		ss<<"\treturn 0;\n}\n"<<endl;
 		break;
 	case ASSIGN:
 		for(i=0;i<tablevel;i++)ss<<'\t';
 		ss<<getChildByType(ASSIGN_DEST)->compile(tablevel)<<"="<<getChildByType(EXPR)->compile(tablevel)<<";"<<endl;
+		break;
+	case ASSIGN_DEST:
+		ss<<"var_"<<*str;
 		break;
 	case LOOP:
 		for(i=0;i<tablevel;i++)ss<<'\t';
@@ -209,7 +212,6 @@ string ASTnode::compile(int tablevel){
 		ss<<*str;
 		break;
 	case EXPR_STR:
-	{
 		ss<<'"';
 		for(char c : *str){
 			if(c=='\n')ss<<"\\n";
@@ -218,7 +220,21 @@ string ASTnode::compile(int tablevel){
 			else ss<<c;
 		}
 		ss<<'"';
-	}
+		break;
+	case EXPR_WORD:
+		ss<<"var_"<<*str;
+		break;
+	case EXPR_OPER:
+		if(firstchild==NULL)
+			ss<<*str;
+		else if(firstchild==lastchild)
+			ss<<*str<<"("<<firstchild->compile(tablevel)<<")";
+		else if(firstchild->nextsibling==lastchild)
+			ss<<"("<<firstchild->compile(tablevel)<<")"<<*str<<"("<<lastchild->compile(tablevel)<<")";
+		else {
+			cerr<<"Unsupported number of operands to operator '"<<*str<<"'! (ASTnode->id="<<id<<")"<<endl;
+			exit(1);
+		}
 		break;
 	default:
 		cerr<<"Unrecognised statement type "<<ASTnode::getTypeString(type)<<"!"<<endl;
@@ -606,9 +622,9 @@ void Program::buildAST(ASTnode *astroot){
 		}
 	}
 }
-void Program::compile(ASTnode *astroot){
+string Program::compile(ASTnode *astroot){
 	//cout<<astroot->printDOT();
-	cout<<astroot->compile(0);
+	return astroot->compile(0);
 }
 void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx,int endidx){
 	class Operator{
@@ -752,29 +768,62 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 class Argflags{
 public:
 	bool list;
-	Argflags(void){list=false;}
+	string outfilename;
+	string ASToutfilename;
+	Argflags(void){
+		list=false;
+		outfilename="";
+		ASToutfilename="";
+	}
 };
 
 int main(int argc,char **argv){
-	string progstr,line;
 	int i,j;
+	bool skipNextArgItem;
+	string progstr,line;
 	Argflags flags;
 	if(argc<2){
 		cerr<<"Flow interpreter by Tom Smeding"<<endl;
 		cerr<<"Usage: "<<argv[0]<<" [options] <progfile>"<<endl;
+		cerr<<"\t-a \x1B[3mfile\x1B[0m\tFile name to output AST to in dot format. Mostly for debugging."<<endl;
 		cerr<<"\t-l\tList the statements after parsing. Mostly for debugging."<<endl;
 		cerr<<"\t-o \x1B[3mfile\x1B[0m\tFile name for output C program."<<endl;
 		return 1;
 	}
 	if(argc>2){
+		skipNextArgItem=false;
 		for(i=1;i<argc-1;i++){
+			if(skipNextArgItem){
+				skipNextArgItem=false;
+				continue;
+			}
 			if(argv[i][0]!='-'){
 				cerr<<"Unrecognised command-line parameter \""<<argv[i]<<"\""<<endl;
 				return 1;
 			}
 			for(j=1;j<strlen(argv[i]);j++)switch(argv[i][j]){
-			case 'l':flags.list=true;break;
-			default:cerr<<"Unrecognised command-line flag \"-"<<argv[i][j]<<"\""<<endl;return 1;
+			case 'a':
+				if(i==argc-2){
+					cerr<<"Too few arguments after usage of -a flag."<<endl;
+					return 1;
+				}
+				flags.ASToutfilename=argv[i+1];
+				skipNextArgItem=true;
+				break;
+			case 'l':
+				flags.list=true;
+				break;
+			case 'o':
+				if(i==argc-2){
+					cerr<<"Too few arguments after usage of -o flag."<<endl;
+					return 1;
+				}
+				flags.outfilename=argv[i+1];
+				skipNextArgItem=true;
+				break;
+			default:
+				cerr<<"Unrecognised command-line flag \"-"<<argv[i][j]<<"\""<<endl;
+				return 1;
 			}
 		}
 	}
@@ -795,7 +844,26 @@ int main(int argc,char **argv){
 	if(flags.list)cerr<<prog->listStatements();
 	ASTnode *astroot=new ASTnode(ROOT);
 	prog->buildAST(astroot);
-	prog->compile(astroot);
+	if(flags.ASToutfilename!=""){
+		ofstream out(flags.ASToutfilename);
+		if(!out.good()){
+			cerr<<"Couldn't open file \""<<flags.ASToutfilename<<"\""<<endl;
+			return 1;
+		}
+		out<<astroot->printDOT();
+		out.close();
+	}
+	if(flags.outfilename==""){
+		cout<<prog->compile(astroot);
+	} else {
+		ofstream out(flags.outfilename);
+		if(!out.good()){
+			cerr<<"Couldn't open file \""<<flags.outfilename<<"\""<<endl;
+			return 1;
+		}
+		out<<prog->compile(astroot);
+		out.close();
+	}
 	delete astroot;
 	delete prog;
 	return 0;
