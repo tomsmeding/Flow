@@ -46,6 +46,11 @@ int getOperatorPrecedence(string &op){
 	if(op=="and"||op=="or"||op=="xor"||op=="nand"||op=="nor"||op=="nxor")return 8;
 	return -1;
 }
+template <typename T>
+bool vector_contains(const vector<T> &v,const T &t){
+	for(T i:v)if(t==i)return true;
+	return false;
+}
 
 class ASTnode{
 public:
@@ -183,18 +188,32 @@ ASTnode* ASTnode::getChildByType(astnodetype_t _t){
 	for(node=firstchild;node!=NULL;node=node->nextsibling)if(node->type==_t)return node;
 	return NULL;
 }
+void compile_get_all_variables(ASTnode *root,vector<string> &acc){
+	ASTnode *n;
+	if((root->type==ASSIGN_DEST||root->type==EXPR_WORD)&&!vector_contains(acc,*root->str))acc.push_back(*root->str);
+	for(n=root->firstchild;n!=NULL;n=n->nextsibling){
+		compile_get_all_variables(n,acc);
+	}
+}
 string ASTnode::compile(int tablevel){
 	int i;
 	ASTnode *node;
 	stringstream ss;
 	switch(type){
 	case ROOT:
+	{
+		vector<string> variables;
 		ss<<"#include <stdio.h>\n\nint main(void){\n";
+		compile_get_all_variables(this,variables);
+		for(string varname : variables){
+			ss<<"\tVar var_"<<varname<<";"<<endl;
+		}
 		for(node=firstchild;node!=NULL;node=node->nextsibling){
 			ss<<node->compile(tablevel+1);
 		}
 		ss<<"\treturn 0;\n}\n"<<endl;
 		break;
+	}
 	case ASSIGN:
 		for(i=0;i<tablevel;i++)ss<<'\t';
 		ss<<getChildByType(ASSIGN_DEST)->compile(tablevel)<<"="<<getChildByType(EXPR)->compile(tablevel)<<";"<<endl;
@@ -204,9 +223,27 @@ string ASTnode::compile(int tablevel){
 		break;
 	case LOOP:
 		for(i=0;i<tablevel;i++)ss<<'\t';
-		ss<<"Loop"<<endl;
+		node=getChildByType(LOOP_TYPE);
+		ss<<"do{"<<endl;
+		ss<<getChildByType(LOOP_BLOCK)->compile(tablevel);
+		for(i=0;i<tablevel;i++)ss<<'\t';
+		ss<<"}while(";
+		if(*node->str=="while"){
+			ss<<getChildByType(CONDITION)->compile(tablevel);
+		} else if(*node->str=="until"){
+			ss<<"!("<<getChildByType(CONDITION)->compile(tablevel)<<")";
+		} else {
+			cerr<<"Unrecognised loop type '"<<*node->str<<"'!"<<endl;
+			exit(1);
+		}
+		ss<<");"<<endl;
 		break;
-	case EXPR:
+	case LOOP_BLOCK:
+		for(node=firstchild;node!=NULL;node=node->nextsibling){
+			ss<<node->compile(tablevel+1);
+		}
+		break;
+	case EXPR:case CONDITION:
 		return firstchild->compile(tablevel);
 	case EXPR_NUM:
 		ss<<*str;
@@ -230,7 +267,7 @@ string ASTnode::compile(int tablevel){
 		else if(firstchild==lastchild)
 			ss<<*str<<"("<<firstchild->compile(tablevel)<<")";
 		else if(firstchild->nextsibling==lastchild)
-			ss<<"("<<firstchild->compile(tablevel)<<")"<<*str<<"("<<lastchild->compile(tablevel)<<")";
+			ss<<"("<<firstchild->compile(tablevel)<<")"<<(*str=="="?"==":str->c_str())<<"("<<lastchild->compile(tablevel)<<")";
 		else {
 			cerr<<"Unsupported number of operands to operator '"<<*str<<"'! (ASTnode->id="<<id<<")"<<endl;
 			exit(1);
@@ -510,7 +547,7 @@ int Statement::readFromString(string &s,int from){
 	return cursor;
 }
 string Statement::getString(void){
-	int i;
+	size_t i;
 	stringstream *ss=new stringstream;
 	string ans;
 	for(i=0;i<tkns->size();i++)*ss<<tkns->at(i)->getString()<<",";
@@ -522,7 +559,7 @@ string Statement::getString(void){
 
 Program::Program(string s){
 	//cerr<<"Parsing <"<<s<<">..."<<endl;
-	int cursor=0,retval;
+	size_t cursor=0,retval;
 	Statement *stmt;
 	stmts=new vector<Statement*>;
 	while(cursor<s.size()){
@@ -544,7 +581,8 @@ Program::~Program(void){
 	delete stmts;
 }
 string Program::listStatements(void){
-	int i,t;
+	size_t i;
+	int t;
 	string ss_str;
 	stringstream *ss=new stringstream;
 	*ss<<stmts->size()<<" statement"<<(stmts->size()==1?"":"s")<<":"<<endl;
@@ -561,7 +599,7 @@ string Program::listStatements(void){
 	return ss_str;
 }
 void Program::buildAST(ASTnode *astroot){
-	int i;
+	size_t i;
 	ASTnode *node,*node2;
 	Statement *stmt;
 	vector<Token*> *tkns;
@@ -778,7 +816,8 @@ public:
 };
 
 int main(int argc,char **argv){
-	int i,j;
+	int i;
+	size_t j;
 	bool skipNextArgItem;
 	string progstr,line;
 	Argflags flags;
