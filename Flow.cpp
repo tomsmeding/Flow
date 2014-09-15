@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdlib>
 #include <cstring>
+#include <unistd.h>
 
 using namespace std;
 
@@ -203,7 +204,57 @@ string ASTnode::compile(int tablevel){
 	case ROOT:
 	{
 		vector<string> variables;
-		ss<<"#include <stdio.h>\n\nint main(void){\n";
+		ss<<
+"#include <stdio.h>\n"
+"#include <string>\n"
+"\n"
+"using namespace std;\n"
+"\n"
+"class Var{\n"
+"	double _dbl; bool dblvalid;\n"
+"	string _str; bool strvalid;\n"
+"public:\n"
+"	Var(void){dblvalid=strvalid=true;_dbl=0;_str=\"0\";}\n"
+"	bool valid_double(void){return dblvalid;}\n"
+"	bool valid_string(void){return dblvalid;}\n"
+"	operator double(){\n"
+"		if(dblvalid)return _dbl;\n"
+"		if(strvalid){\n"
+"			dblvalid=true;\n"
+"			return _dbl=strtod(_str.c_str(),NULL);\n"
+"		} else throw \"No valid value in Var!\";\n"
+"	}\n"
+"	operator string(){\n"
+"		if(strvalid)return _str;\n"
+"		if(dblvalid){\n"
+"			strvalid=true;\n"
+"			return _str=to_string(_dbl);\n"
+"		} else throw \"No valid value in Var!\";\n"
+"	}\n"
+"	Var& operator=(const double other){\n"
+"		strvalid=false;\n"
+"		dblvalid=true;\n"
+"		_dbl=other;\n"
+"		return *this;\n"
+"	}\n"
+"	Var& operator=(const string &other){\n"
+"		dblvalid=false;\n"
+"		strvalid=true;\n"
+"		_str=other;\n"
+"		return *this;\n"
+"	}\n"
+"\n"
+"};\n"
+"\n"
+"void print(const string &s){printf(\"%s\",s.c_str());}\n"
+"void print(const char *s){printf(\"%s\",s);}\n"
+"void print(const double d){printf(\"%g\",d);}\n"
+"void print(Var &v){\n"
+"	if(v.valid_double())printf(\"%g\",(double)v);\n"
+"	else printf(\"%s\",((string)v).c_str());\n"
+"}\n"
+"\n"
+"int main(int argc,char **argv){\n";
 		compile_get_all_variables(this,variables);
 		for(string varname : variables){
 			ss<<"\tVar var_"<<varname<<";"<<endl;
@@ -216,7 +267,12 @@ string ASTnode::compile(int tablevel){
 	}
 	case ASSIGN:
 		for(i=0;i<tablevel;i++)ss<<'\t';
-		ss<<getChildByType(ASSIGN_DEST)->compile(tablevel)<<"="<<getChildByType(EXPR)->compile(tablevel)<<";"<<endl;
+		node=getChildByType(ASSIGN_DEST);
+		if(*node->str=="out"){
+			ss<<"print("<<getChildByType(EXPR)->compile(tablevel)<<");"<<endl;
+		} else {
+			ss<<node->compile(tablevel)<<"="<<getChildByType(EXPR)->compile(tablevel)<<";"<<endl;
+		}
 		break;
 	case ASSIGN_DEST:
 		ss<<"var_"<<*str;
@@ -805,12 +861,13 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 
 class Argflags{
 public:
-	bool list;
+	bool list,nocompile;
 	string outfilename;
 	string ASToutfilename;
 	Argflags(void){
 		list=false;
-		outfilename="";
+		nocompile=false;
+		outfilename="a.out";
 		ASToutfilename="";
 	}
 };
@@ -825,8 +882,9 @@ int main(int argc,char **argv){
 		cerr<<"Flow interpreter by Tom Smeding"<<endl;
 		cerr<<"Usage: "<<argv[0]<<" [options] <progfile>"<<endl;
 		cerr<<"\t-a \x1B[3mfile\x1B[0m\tFile name to output AST to in dot format. Mostly for debugging."<<endl;
+		cerr<<"\t-C\tStop after translation to C++."<<endl;
 		cerr<<"\t-l\tList the statements after parsing. Mostly for debugging."<<endl;
-		cerr<<"\t-o \x1B[3mfile\x1B[0m\tFile name for output C program."<<endl;
+		cerr<<"\t-o \x1B[3mfile\x1B[0m\tFile name for output file."<<endl;
 		return 1;
 	}
 	if(argc>2){
@@ -849,6 +907,9 @@ int main(int argc,char **argv){
 				flags.ASToutfilename=argv[i+1];
 				skipNextArgItem=true;
 				break;
+			case 'C':
+				flags.nocompile=true;
+				break;
 			case 'l':
 				flags.list=true;
 				break;
@@ -866,6 +927,7 @@ int main(int argc,char **argv){
 			}
 		}
 	}
+
 	ifstream in(argv[argc-1]);
 	if(!in.good()){
 		cerr<<"Couldn't open file \""<<argv[argc-1]<<"\""<<endl;
@@ -879,10 +941,13 @@ int main(int argc,char **argv){
 	progstr+=line;
 	in.close();
 	trim(progstr);
+
 	Program *prog=new Program(progstr);
 	if(flags.list)cerr<<prog->listStatements();
+
 	ASTnode *astroot=new ASTnode(ROOT);
 	prog->buildAST(astroot);
+
 	if(flags.ASToutfilename!=""){
 		ofstream out(flags.ASToutfilename);
 		if(!out.good()){
@@ -892,9 +957,8 @@ int main(int argc,char **argv){
 		out<<astroot->printDOT();
 		out.close();
 	}
-	if(flags.outfilename==""){
-		cout<<prog->compile(astroot);
-	} else {
+
+	if(flags.nocompile){
 		ofstream out(flags.outfilename);
 		if(!out.good()){
 			cerr<<"Couldn't open file \""<<flags.outfilename<<"\""<<endl;
@@ -902,7 +966,24 @@ int main(int argc,char **argv){
 		}
 		out<<prog->compile(astroot);
 		out.close();
+	} else {
+		char tempfname[16];
+		FILE *tempf;
+		stringstream cmd;
+		strcpy(tempfname,"flow_XXXXXX.cpp");
+		tempf=fdopen(mkstemps(tempfname,4),"w");
+		fprintf(tempf,"%s",prog->compile(astroot).c_str());
+		fclose(tempf);
+		cmd<<"g++ -Wall -O2 -xc++ -std=c++11 -o '";
+		for(char c : flags.outfilename){
+			if(c=='\'')cmd<<"\\'";
+			else cmd<<c;
+		}
+		cmd<<"' "<<tempfname;
+		system(cmd.str().c_str());
+		unlink(tempfname);
 	}
+
 	delete astroot;
 	delete prog;
 	return 0;
