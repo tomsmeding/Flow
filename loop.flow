@@ -1,9 +1,9 @@
 0->abc;
-{
+until abc=10{
 	abc+1->abc;
 	abc->out;
 	"\n"->out;
-}until abc=10;
+};
 "down!\n"->out;
 {
 	abc-1->abc;

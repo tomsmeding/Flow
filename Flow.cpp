@@ -205,8 +205,9 @@ string ASTnode::compile(int tablevel){
 	{
 		vector<string> variables;
 		ss<<
-"#include <stdio.h>\n"
 "#include <string>\n"
+"#include <cstdio>\n"
+"#include <cmath>\n"
 "\n"
 "using namespace std;\n"
 "\n"
@@ -280,19 +281,26 @@ string ASTnode::compile(int tablevel){
 	case LOOP:
 		for(i=0;i<tablevel;i++)ss<<'\t';
 		node=getChildByType(LOOP_TYPE);
-		ss<<"do{"<<endl;
-		ss<<getChildByType(LOOP_BLOCK)->compile(tablevel);
-		for(i=0;i<tablevel;i++)ss<<'\t';
-		ss<<"}while(";
-		if(*node->str=="while"){
-			ss<<getChildByType(CONDITION)->compile(tablevel);
-		} else if(*node->str=="until"){
-			ss<<"!("<<getChildByType(CONDITION)->compile(tablevel)<<")";
+		if(*node->str=="while"||*node->str=="until"){
+			ss<<"while(";
+			if(*node->str=="while")ss<<getChildByType(CONDITION)->compile(tablevel);
+			else             ss<<"!("<<getChildByType(CONDITION)->compile(tablevel)<<")";
+			ss<<"){\n";
+			ss<<getChildByType(LOOP_BLOCK)->compile(tablevel);
+			for(i=0;i<tablevel;i++)ss<<'\t';
+			ss<<"}"<<endl;
+		} else if(*node->str=="do_while"||*node->str=="do_until"){
+			ss<<"do{"<<endl;
+			ss<<getChildByType(LOOP_BLOCK)->compile(tablevel);
+			for(i=0;i<tablevel;i++)ss<<'\t';
+			ss<<"}while(";
+			if(*node->str=="do_while")ss<<getChildByType(CONDITION)->compile(tablevel);
+			else                ss<<"!("<<getChildByType(CONDITION)->compile(tablevel)<<")";
+			ss<<");"<<endl;
 		} else {
 			cerr<<"Unrecognised loop type '"<<*node->str<<"'!"<<endl;
 			exit(1);
 		}
-		ss<<");"<<endl;
 		break;
 	case LOOP_BLOCK:
 		for(node=firstchild;node!=NULL;node=node->nextsibling){
@@ -514,12 +522,13 @@ int Statement::readFromString(string &s,int from){
 			break;
 		case '{':
 		{
+			//cerr<<"Statement::readFromString: "<<getString()<<endl;
 			int level;
 			for(i=cursor+1,level=1;i<s.size()&&level>0;i++){
 				if(s[i]=='{')level++;
 				if(s[i]=='}')level--;
 			}
-			if(i==s.size()){
+			if(i==s.size()&&level!=0){
 				cerr<<":"<<lexer_line_number<<":Unclosed block"<<endl;
 				exit(1);
 			}
@@ -568,6 +577,15 @@ int Statement::readFromString(string &s,int from){
 			justDidOperator=false;
 			break;
 		}
+		case '#':
+			cursor=s.find('\n',cursor);
+			if(cursor==string::npos){
+				done=true;
+				break;
+			}
+			cursor++;
+			lexer_line_number++;
+			break;
 		default:
 			c=s[cursor];
 			if((c>='A'&&c<='Z')||(c>='a'&&c<='z')||c=='_'){
@@ -622,6 +640,10 @@ Program::Program(string s){
 		stmt=new Statement;
 		retval=stmt->readFromString(s,cursor);
 		if(retval==string::npos){
+			if(stmt->tkns->size()!=0){
+				cerr<<":"<<lexer_line_number<<":No terminating semicolon"<<endl;
+				exit(1);
+			}
 			delete stmt;
 			break;
 		} else cursor=retval;
@@ -678,22 +700,35 @@ void Program::buildAST(ASTnode *astroot){
 					node->attachChild(node2);
 					node2=new ASTnode(LOOP_TYPE);
 					node2->str=new string(*tkns->at(1)->tknstr);
+					node2->str->assign("do_"+*node2->str);
 					node->attachChild(node2);
 					node2=new ASTnode(CONDITION);
 					Program::buildExpressionAST(node2,tkns,2,tkns->size()-2);
-					/*for(j=2;j<tkns->size()-1;j++){
-						node3=new ASTnode(EXPR_NUM);
-						node3->str=new string(*tkns->at(j)->tknstr);
-						node2->attachChild(node3);
-					}*/
 					node->attachChild(node2);
 					astroot->attachChild(node);
 				} else {
-					cerr<<":"<<tkns->at(tkns->size()-1)->linenum<<":Incomplete statement, too few tokens for a loop"<<endl;
+					cerr<<":"<<tkns->at(tkns->size()-1)->linenum<<":Incomplete statement, expected condition after \""<<*tkns->at(1)->tknstr<<'"'<<endl;
 					exit(1);
 				}
 			} else {
 				cerr<<":"<<tkns->at(tkns->size()-1)->linenum<<":Unrecognised statement: loose block"<<endl;
+				exit(1);
+			}
+		} else if(tkns->size()>=3&&tkns->at(0)->type==WORD&&((*tkns->at(0)->tknstr)=="while"||(*tkns->at(0)->tknstr)=="until")&&tkns->at(tkns->size()-2)->type==BLOCK){
+			if(tkns->size()>=4){
+				node=new ASTnode(LOOP);
+				node2=new ASTnode(LOOP_BLOCK);
+				tkns->at(tkns->size()-2)->blockprog->buildAST(node2);
+				node->attachChild(node2);
+				node2=new ASTnode(LOOP_TYPE);
+				node2->str=new string(*tkns->at(0)->tknstr);
+				node->attachChild(node2);
+				node2=new ASTnode(CONDITION);
+				Program::buildExpressionAST(node2,tkns,1,tkns->size()-3);
+				node->attachChild(node2);
+				astroot->attachChild(node);
+			} else {
+				cerr<<":"<<tkns->at(0)->linenum<<":Incomplete statement, expected condition after \""<<*tkns->at(0)->tknstr<<'"'<<endl;
 				exit(1);
 			}
 		} else if(tkns->size()>=4&&tkns->at(tkns->size()-3)->type==SYMBOL&&(*tkns->at(tkns->size()-3)->tknstr=="->"||*tkns->at(tkns->size()-3)->tknstr=="->>")){
