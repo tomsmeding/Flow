@@ -808,7 +808,10 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 						while(opstack->size()>0&&*opstack->at(opstack->size()-1)->str!="("){
 							node=new ASTnode(EXPR_OPER);
 							*node->str=*opstack->at(opstack->size()-1)->str;
-							if(rpnstack->size()<2)cerr<<":"<<tkns->at(i)->linenum<<":Invalid expression"<<endl;
+							if(rpnstack->size()<2){
+								cerr<<":"<<tkns->at(i)->linenum<<":Invalid expression"<<endl;
+								exit(1);
+							}
 							node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
 							node->attachChild(node2);
 							node2=new ASTnode(*rpnstack->at(rpnstack->size()-1));
@@ -836,7 +839,10 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 					)){ //`!` and `not` aren't left-associative
 					node=new ASTnode(EXPR_OPER);
 					*node->str=*opstack->at(opstack->size()-1)->str;
-					if(rpnstack->size()<2)cerr<<":"<<tkns->at(i)->linenum<<":Invalid expression"<<endl;
+					if(rpnstack->size()<2){
+						cerr<<":"<<tkns->at(i)->linenum<<":Invalid expression"<<endl;
+						exit(1);
+					}
 					node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
 					node->attachChild(node2);
 					node2=new ASTnode(*rpnstack->at(rpnstack->size()-1));
@@ -870,7 +876,10 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 		}
 		node=new ASTnode(EXPR_OPER);
 		*node->str=*opstack->at(opstack->size()-1)->str;
-		if(rpnstack->size()<2)cerr<<":"<<tkns->at(i)->linenum<<":Invalid expression"<<endl;
+		if(rpnstack->size()<2){
+			cerr<<":"<<tkns->at(0)->linenum<<":Invalid expression"<<endl;
+			exit(1);
+		}
 		node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
 		node->attachChild(node2);
 		node2=new ASTnode(*rpnstack->at(rpnstack->size()-1));
