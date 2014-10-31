@@ -36,9 +36,9 @@ string intToString(int i){
 	ss<<i;
 	return ss.str();
 }
-int getOperatorPrecedence(string &op){
+int getOperatorPrecedence(const string &op){
 	if(op=="!")return 1;
-	if(op=="*"||op=="/")return 2;
+	if(op=="*"||op=="/"||op=="%")return 2;
 	if(op=="+"||op=="-")return 3;
 	if(op==">"||op=="<"||op==">="||op=="<=")return 4;
 	if(op=="="||op=="!=")return 5;
@@ -47,10 +47,33 @@ int getOperatorPrecedence(string &op){
 	if(op=="and"||op=="or"||op=="xor"||op=="nand"||op=="nor"||op=="nxor")return 8;
 	return -1;
 }
+int getOperatorAssociativity(const string &op){
+	if(op=="!"||op=="not")return 1;
+	if(op=="*"||op=="/"||op=="%"||op=="+"||op=="-"||op==">"||op=="<"||op==">="||op=="<="||op=="="||op=="!="||op=="&&"||op=="||"||op=="^^"||op=="!&&"||op=="!||"||op=="!^^"||op=="and"||op=="or"||op=="xor"||op=="nand"||op=="nor"||op=="nxor")return 2;
+	return -1;
+}
+bool isLeftAssociative(const string &op){
+	if(op=="!"||op=="not")return false;
+	if(op=="*"||op=="/"||op=="%"||op=="+"||op=="-"||op==">"||op=="<"||op==">="||op=="<="||op=="="||op=="!="||op=="&&"||op=="||"||op=="^^"||op=="!&&"||op=="!||"||op=="!^^"||op=="and"||op=="or"||op=="xor"||op=="nand"||op=="nor"||op=="nxor")return true;
+	return false; //meh
+}
 template <typename T>
 bool vector_contains(const vector<T> &v,const T &t){
 	for(T i:v)if(t==i)return true;
 	return false;
+}
+string escape_slashes(const string &s){
+	string res;
+	res.reserve(s.size()+2);
+	for(char c : s){
+		if(c=='\\')res+="\\\\";
+		else if(c=='\n')res+="\\n";
+		else if(c=='\r')res+="\\r";
+		else if(c=='\t')res+="\\t";
+		else if(c<32)res+="\\x"+(char)(((c&0x10)>>4)+'0')+(char)((c&0x0f)+'0');
+		else res+=c;
+	}
+	return res;
 }
 
 class ASTnode{
@@ -154,7 +177,7 @@ void ASTnode::printDOTrecur(stringstream *ss,int tablevel){
 	typestr=ASTnode::getTypeString(type);
 	for(node=firstchild;node!=NULL;node=node->nextsibling){
 		for(i=0;i<tablevel;i++)*ss<<"\t";
-		*ss<<"\""<<typestr<<"("<<id<<")\\n"<<*str<<"\"->\""<<ASTnode::getTypeString(node->type)<<"("<<node->id<<")\\n"<<*node->str<<"\";\n";
+		*ss<<"\""<<typestr<<"("<<id<<")\\n"<<escape_slashes(escape_slashes(*str))<<"\"->\""<<ASTnode::getTypeString(node->type)<<"("<<node->id<<")\\n"<<escape_slashes(escape_slashes(*node->str))<<"\";\n";
 		node->printDOTrecur(ss,tablevel+1);
 	}
 }
@@ -217,7 +240,7 @@ string ASTnode::compile(int tablevel){
 "public:\n"
 "	Var(void){dblvalid=strvalid=true;_dbl=0;_str=\"0\";}\n"
 "	bool valid_double(void){return dblvalid;}\n"
-"	bool valid_string(void){return dblvalid;}\n"
+"	bool valid_string(void){return strvalid;}\n"
 "	operator double(){\n"
 "		if(dblvalid)return _dbl;\n"
 "		if(strvalid){\n"
@@ -255,6 +278,11 @@ string ASTnode::compile(int tablevel){
 "	else printf(\"%s\",((string)v).c_str());\n"
 "}\n"
 "\n"
+"double mod(Var &va,Var &vb){\n"
+"	double a=(double)va,b=(double)vb;\n"
+"	return a-(int)(a/b)*b;\n"
+"}\n"
+"\n"
 "int main(int argc,char **argv){\n";
 		compile_get_all_variables(this,variables);
 		for(string varname : variables){
@@ -281,11 +309,11 @@ string ASTnode::compile(int tablevel){
 	case LOOP:
 		for(i=0;i<tablevel;i++)ss<<'\t';
 		node=getChildByType(LOOP_TYPE);
-		if(*node->str=="while"||*node->str=="until"){
-			ss<<"while(";
-			if(*node->str=="while")ss<<getChildByType(CONDITION)->compile(tablevel);
-			else             ss<<"!("<<getChildByType(CONDITION)->compile(tablevel)<<")";
-			ss<<"){\n";
+		if(*node->str=="while"||*node->str=="until"||*node->str=="if"){
+			if(*node->str=="while")ss<<"while("<<getChildByType(CONDITION)->compile(tablevel)<<")";
+			else if(*node->str=="until")ss<<"while(!("<<getChildByType(CONDITION)->compile(tablevel)<<"))";
+			else ss<<"if("<<getChildByType(CONDITION)->compile(tablevel)<<")";
+			ss<<"{\n";
 			ss<<getChildByType(LOOP_BLOCK)->compile(tablevel);
 			for(i=0;i<tablevel;i++)ss<<'\t';
 			ss<<"}"<<endl;
@@ -328,11 +356,20 @@ string ASTnode::compile(int tablevel){
 	case EXPR_OPER:
 		if(firstchild==NULL)
 			ss<<*str;
-		else if(firstchild==lastchild)
-			ss<<*str<<"("<<firstchild->compile(tablevel)<<")";
-		else if(firstchild->nextsibling==lastchild)
-			ss<<"("<<firstchild->compile(tablevel)<<")"<<(*str=="="?"==":str->c_str())<<"("<<lastchild->compile(tablevel)<<")";
-		else {
+		else if(firstchild==lastchild){
+			if(*str=="not")ss<<"!("<<firstchild->compile(tablevel)<<")";
+			else ss<<*str<<"("<<firstchild->compile(tablevel)<<")";
+		} else if(firstchild->nextsibling==lastchild){
+			if(*str=="=")ss<<"("<<firstchild->compile(tablevel)<<")==("<<lastchild->compile(tablevel)<<")";
+			else if(*str=="%")ss<<"mod("<<firstchild->compile(tablevel)<<","<<lastchild->compile(tablevel)<<")";
+			else if(*str=="^^"||*str=="xor")ss<<"!!("<<firstchild->compile(tablevel)<<")^!!("<<lastchild->compile(tablevel)<<")";
+			else if(*str=="!&&"||*str=="nanx")ss<<"!("<<firstchild->compile(tablevel)<<")||!("<<lastchild->compile(tablevel)<<")";
+			else if(*str=="!||"||*str=="nor")ss<<"!("<<firstchild->compile(tablevel)<<")&&!("<<lastchild->compile(tablevel)<<")";
+			else if(*str=="!^^"||*str=="nxor")ss<<"!(!!("<<firstchild->compile(tablevel)<<")^!!("<<lastchild->compile(tablevel)<<"))";
+			else if(*str=="and")ss<<"("<<firstchild->compile(tablevel)<<")&&("<<lastchild->compile(tablevel)<<")";
+			else if(*str=="or")ss<<"("<<firstchild->compile(tablevel)<<")||("<<lastchild->compile(tablevel)<<")";
+			else ss<<"("<<firstchild->compile(tablevel)<<")"<<*str<<"("<<lastchild->compile(tablevel)<<")";
+		} else {
 			cerr<<"Unsupported number of operands to operator '"<<*str<<"'! (ASTnode->id="<<id<<")"<<endl;
 			exit(1);
 		}
@@ -447,7 +484,7 @@ int Statement::readFromString(string &s,int from){
 		c=s[cursor];
 		switch(c){
 		case '\n':lexer_line_number++;cursor++;break;
-		case '(':case ')':case '+':case '*':case '/':case '=':
+		case '(':case ')':case '+':case '*':case '/':case '%':case '=':
 			tkns->push_back(new Token(SYMBOL,s.substr(cursor,1),lexer_line_number));
 			cursor++;
 			justDidOperator=true;
@@ -714,7 +751,7 @@ void Program::buildAST(ASTnode *astroot){
 				cerr<<":"<<tkns->at(tkns->size()-1)->linenum<<":Unrecognised statement: loose block"<<endl;
 				exit(1);
 			}
-		} else if(tkns->size()>=3&&tkns->at(0)->type==WORD&&((*tkns->at(0)->tknstr)=="while"||(*tkns->at(0)->tknstr)=="until")&&tkns->at(tkns->size()-2)->type==BLOCK){
+		} else if(tkns->size()>=3&&tkns->at(0)->type==WORD&&((*tkns->at(0)->tknstr)=="while"||(*tkns->at(0)->tknstr)=="until"||(*tkns->at(0)->tknstr)=="if")&&tkns->at(tkns->size()-2)->type==BLOCK){
 			if(tkns->size()>=4){
 				node=new ASTnode(LOOP);
 				node2=new ASTnode(LOOP_BLOCK);
@@ -771,6 +808,7 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 	ASTnode *node,*node2;
 	Operator *oper;
 	int i,prec/*,termsInRPN*/;
+	unsigned int associativity;
 	rpnstack=new vector<ASTnode*>;
 	opstack=new vector<Operator*>;
 	for(i=startidx;i<=endidx;i++){
@@ -808,15 +846,18 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 						while(opstack->size()>0&&*opstack->at(opstack->size()-1)->str!="("){
 							node=new ASTnode(EXPR_OPER);
 							*node->str=*opstack->at(opstack->size()-1)->str;
-							if(rpnstack->size()<2){
+							associativity=getOperatorAssociativity(*node->str);
+							if(rpnstack->size()<associativity){
 								cerr<<":"<<tkns->at(i)->linenum<<":Invalid expression"<<endl;
 								exit(1);
 							}
-							node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
-							node->attachChild(node2);
+							if(associativity==2){
+								node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
+								node->attachChild(node2);
+							}
 							node2=new ASTnode(*rpnstack->at(rpnstack->size()-1));
 							node->attachChild(node2);
-							rpnstack->pop_back();
+							if(associativity==2)rpnstack->pop_back();
 							rpnstack->pop_back();
 							rpnstack->push_back(node);
 							opstack->pop_back();
@@ -835,19 +876,22 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 			} else {
 				while(opstack->size()>0&&(
 					prec>opstack->at(opstack->size()-1)->prec //> instead of < because precedence numbers are reversed here :)
-					||(*tkns->at(i)->tknstr!="!"&&*tkns->at(i)->tknstr!="not"&&prec==opstack->at(opstack->size()-1)->prec)
-					)){ //`!` and `not` aren't left-associative
+					||(isLeftAssociative(*tkns->at(i)->tknstr)&&prec==opstack->at(opstack->size()-1)->prec)
+					)){
 					node=new ASTnode(EXPR_OPER);
 					*node->str=*opstack->at(opstack->size()-1)->str;
-					if(rpnstack->size()<2){
+					associativity=getOperatorAssociativity(*node->str);
+					if(rpnstack->size()<associativity){
 						cerr<<":"<<tkns->at(i)->linenum<<":Invalid expression"<<endl;
 						exit(1);
 					}
-					node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
-					node->attachChild(node2);
+					if(associativity==2){
+						node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
+						node->attachChild(node2);
+					}
 					node2=new ASTnode(*rpnstack->at(rpnstack->size()-1));
 					node->attachChild(node2);
-					rpnstack->pop_back();
+					if(associativity==2)rpnstack->pop_back();
 					rpnstack->pop_back();
 					rpnstack->push_back(node);
 					opstack->pop_back();
@@ -876,15 +920,18 @@ void Program::buildExpressionAST(ASTnode *root,vector<Token*> *tkns,int startidx
 		}
 		node=new ASTnode(EXPR_OPER);
 		*node->str=*opstack->at(opstack->size()-1)->str;
-		if(rpnstack->size()<2){
+		associativity=getOperatorAssociativity(*node->str);
+		if(rpnstack->size()<associativity){
 			cerr<<":"<<tkns->at(0)->linenum<<":Invalid expression"<<endl;
 			exit(1);
 		}
-		node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
-		node->attachChild(node2);
+		if(associativity==2){
+			node2=new ASTnode(*rpnstack->at(rpnstack->size()-2));
+			node->attachChild(node2);
+		}
 		node2=new ASTnode(*rpnstack->at(rpnstack->size()-1));
 		node->attachChild(node2);
-		rpnstack->pop_back();
+		if(associativity==2)rpnstack->pop_back();
 		rpnstack->pop_back();
 		rpnstack->push_back(node);
 		opstack->pop_back();
