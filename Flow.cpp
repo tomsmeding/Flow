@@ -59,7 +59,7 @@ bool isLeftAssociative(const string &op){
 }
 template <typename T>
 bool vector_contains(const vector<T> &v,const T &t){
-	for(T i:v)if(t==i)return true;
+	for(const T &i:v)if(t==i)return true;
 	return false;
 }
 string escape_slashes(const string &s){
@@ -70,7 +70,7 @@ string escape_slashes(const string &s){
 		else if(c=='\n')res+="\\n";
 		else if(c=='\r')res+="\\r";
 		else if(c=='\t')res+="\\t";
-		else if(c<32)res+="\\x"+(char)(((c&0x10)>>4)+'0')+(char)((c&0x0f)+'0');
+		else if(c<32)((res+="\\x")+=(char)(((c&0x10)>>4)+'0'))+=(char)((c&0x0f)+'0');
 		else res+=c;
 	}
 	return res;
@@ -230,6 +230,7 @@ string ASTnode::compile(int tablevel){
 		ss<<
 "#include <string>\n"
 "#include <cstdio>\n"
+"#include <cstdlib>\n"
 "#include <cmath>\n"
 "\n"
 "using namespace std;\n"
